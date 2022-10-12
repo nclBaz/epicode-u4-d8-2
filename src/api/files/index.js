@@ -3,7 +3,12 @@ import multer from "multer"
 import { extname } from "path"
 import { v2 as cloudinary } from "cloudinary"
 import { CloudinaryStorage } from "multer-storage-cloudinary"
-import { saveUsersAvatars } from "../../lib/fs-tools.js"
+import {
+  getBooksJSONReadableStream,
+  saveUsersAvatars,
+} from "../../lib/fs-tools.js"
+import { pipeline } from "stream"
+import { createGzip } from "zlib"
 
 const filesRouter = express.Router()
 
@@ -19,7 +24,7 @@ const cloudinaryUploader = multer({
 
 filesRouter.post(
   "/:userId/avatar",
-  multer().array("avatar"),
+  multer().single("avatar"),
   async (req, res, next) => {
     // "avatar" needs to match precisely the name of the field appended in the FormData object coming from the FE.
     // If they don't match, multer is not going to find that file
@@ -72,5 +77,23 @@ filesRouter.post(
     }
   }
 )
+
+filesRouter.get("/booksJSON", (req, res, next) => {
+  try {
+    // SOURCES (file on disk, http request,...) --> DESTINATIONS (file on disk, terminal, http response)
+
+    // SOURCE (Readable Stream on books.json file) --> DESTINATION (http response)
+
+    res.setHeader("Content-Disposition", "attachment; filename=books.json.gz")
+    const source = getBooksJSONReadableStream()
+    const destination = res
+    const transform = createGzip()
+    pipeline(source, transform, destination, err => {
+      if (err) console.log(err)
+    })
+  } catch (error) {
+    next(error)
+  }
+})
 
 export default filesRouter
